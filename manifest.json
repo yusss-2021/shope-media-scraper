@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "Shopee Affiliate Scraper",
+  "version": "2.8.2",
+  "description": "Scraper produk Shopee Affiliate: ambil gambar HD, video .mp4, deskripsi produk, ulasan, spesifikasi, dan ekspor CSV.",
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "scripting",
+    "tabs",
+    "downloads"
+  ],
+  "host_permissions": [
+    "https://affiliate.shopee.co.id/*",
+    "https://shopee.co.id/*",
+    "https://*.shopee.co.id/*",
+    "https://shope.ee/*",
+    "https://s.shopee.co.id/*",
+    "https://*.susercontent.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Buka / Tutup Panel Shopee Scraper",
+    "default_icon": {
+      "16": "icons/16.png",
+      "48": "icons/48.png",
+      "128": "icons/128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/16.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://affiliate.shopee.co.id/*",
+        "https://shopee.co.id/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
