@@ -555,18 +555,27 @@ async function ekstrakProduk(opsi) {
           }
         }
 
-        // C. Spesifikasi Produk (Bahan, Ukuran, Model, dll)
+        // C. Spesifikasi Produk (Diutamakan Kategori untuk Penentuan Niche)
         if (opsi.spesifikasi) {
-          const attrs = itemObj.attributes || dataPdp.attributes;
-          if (Array.isArray(attrs) && attrs.length > 0) {
-            const barisAttrs = [];
-            attrs.forEach((a) => {
-              const k = String(a.name || "").trim();
-              const v = String(a.value || "").trim();
-              if (k && v) barisAttrs.push(`${k}: ${v}`);
-            });
-            if (barisAttrs.length > 0) {
-              spesifikasi = barisAttrs.slice(0, 10).join(" | ");
+          const cats = itemObj.categories || dataPdp.categories || itemObj.fe_categories || dataPdp.fe_categories;
+          if (Array.isArray(cats) && cats.length > 0) {
+            const catNames = cats.map(c => c.display_name || c.name).filter(Boolean);
+            if (catNames.length > 0) {
+              spesifikasi = catNames.join(" > ");
+            }
+          }
+          if (!spesifikasi) {
+            const attrs = itemObj.attributes || dataPdp.attributes;
+            if (Array.isArray(attrs) && attrs.length > 0) {
+              const barisAttrs = [];
+              attrs.forEach((a) => {
+                const k = String(a.name || "").trim();
+                const v = String(a.value || "").trim();
+                if (k && v) barisAttrs.push(`${k}: ${v}`);
+              });
+              if (barisAttrs.length > 0) {
+                spesifikasi = barisAttrs.slice(0, 10).join(" | ");
+              }
             }
           }
         }
@@ -590,28 +599,94 @@ async function ekstrakProduk(opsi) {
     await tidurX(800);
   } catch(e) {}
 
-  // 12. Ekstraksi Spesifikasi dari DOM (Tabel Atribut Produk Shopee)
+  // 12. Ekstraksi Kategori / Spesifikasi Produk dari DOM (Diutamakan Kategori untuk Penentuan Niche)
   if (opsi.spesifikasi && !spesifikasi) {
     try {
-      const elPdpDetail = document.querySelector('.page-product__detail, [class*="product-detail"], div[class*="sections"]');
-      if (elPdpDetail) {
-        const rows = [];
-        const labels = elPdpDetail.querySelectorAll('label, [class*="label"], dt, [class*="title"]');
-        labels.forEach((lbl) => {
-          const k = (lbl.innerText || lbl.textContent || '').trim();
-          if (k && k.length < 35 && !/kategori|dikirim dari|merek|deskripsi|asal|garansi|ongkir/i.test(k)) {
-            const valEl = lbl.nextElementSibling || lbl.parentElement.querySelector('div:not(:first-child), span:not(:first-child)');
-            const v = (valEl?.innerText || valEl?.textContent || '').trim();
-            if (v && v.length < 80 && !rows.some(r => r.startsWith(k))) {
-              rows.push(`${k}: ${v}`);
+      let catList = [];
+
+      // Strategi 1: Cari dari baris 'Kategori' di area Spesifikasi Produk (DOM Shopee saat ini)
+      const elSpesifikasi = Array.from(document.querySelectorAll('h2, h3, div')).find(el => {
+        const t = (el.innerText || el.textContent || '').trim();
+        return el.children.length === 0 && /^spesifikasi produk$/i.test(t);
+      });
+
+      if (elSpesifikasi) {
+        const sec = elSpesifikasi.closest('section') || elSpesifikasi.closest('.page-product__detail') || elSpesifikasi.parentElement;
+        if (sec) {
+          const elKategoriLabel = Array.from(sec.querySelectorAll('h3, h4, div, span, label, dt')).find(el => {
+            const t = (el.innerText || el.textContent || '').trim();
+            return el.children.length === 0 && /^kategori$/i.test(t);
+          });
+
+          if (elKategoriLabel) {
+            const rowKategori = elKategoriLabel.closest('div') ? elKategoriLabel.closest('div').parentElement : elKategoriLabel.parentElement;
+            if (rowKategori) {
+              const links = rowKategori.querySelectorAll('a');
+              links.forEach(a => {
+                const t = (a.innerText || a.textContent || '').trim();
+                if (t && t.toLowerCase() !== 'shopee' && !catList.includes(t)) {
+                  catList.push(t);
+                }
+              });
             }
           }
-        });
-        if (rows.length > 0) {
-          spesifikasi = rows.slice(0, 8).join(" | ");
         }
       }
+
+      // Strategi 2: Ambil dari Breadcrumb atas / link dengan pola routing kategori Shopee (href*="-cat.")
+      if (catList.length === 0) {
+        const catLinks = Array.from(document.querySelectorAll('a[href*="-cat."]'));
+        for (const a of catLinks) {
+          const t = (a.innerText || a.textContent || '').trim();
+          if (t && t.toLowerCase() !== 'shopee' && !catList.includes(t)) {
+            catList.push(t);
+          }
+          if (catList.length >= 4) break;
+        }
+      }
+
+      // Strategi 3: Breadcrumb container umum
+      if (catList.length === 0) {
+        const elBreadcrumb = document.querySelector('.page-product__breadcrumb, [class*="breadcrumb"]');
+        if (elBreadcrumb) {
+          const links = elBreadcrumb.querySelectorAll('a');
+          links.forEach(a => {
+            const t = (a.innerText || a.textContent || '').trim();
+            if (t && t.toLowerCase() !== 'shopee' && !catList.includes(t)) {
+              catList.push(t);
+            }
+          });
+        }
+      }
+
+      if (catList.length > 0) {
+        spesifikasi = catList.join(" > ");
+      }
     } catch (e) {}
+
+    // Fallback: Jika kategori sama sekali tidak terdeteksi, ambil atribut spesifikasi lain dari DOM
+    if (!spesifikasi) {
+      try {
+        const elPdpDetail = document.querySelector('.page-product__detail, [class*="product-detail"], div[class*="sections"]');
+        if (elPdpDetail) {
+          const rows = [];
+          const labels = elPdpDetail.querySelectorAll('h3, h4, label, [class*="label"], dt, [class*="title"]');
+          labels.forEach((lbl) => {
+            const k = (lbl.innerText || lbl.textContent || '').trim();
+            if (k && k.length < 35 && !/dikirim dari|deskripsi|asal|garansi|ongkir/i.test(k)) {
+              const valEl = lbl.nextElementSibling || lbl.parentElement.querySelector('div:not(:first-child), span:not(:first-child)');
+              const v = (valEl?.innerText || valEl?.textContent || '').trim();
+              if (v && v.length < 80 && !rows.some(r => r.startsWith(k))) {
+                rows.push(`${k}: ${v}`);
+              }
+            }
+          });
+          if (rows.length > 0) {
+            spesifikasi = rows.slice(0, 8).join(" | ");
+          }
+        }
+      } catch (e) {}
+    }
   }
 
   // 13. Ekstraksi Rating dari DOM / Tampilan Halaman

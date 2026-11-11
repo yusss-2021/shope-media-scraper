@@ -642,7 +642,7 @@
             </label>
             <label class="cek" style="margin: 0; font-size: 11px; color: #6c757d; display: flex; align-items: center; gap: 6px; cursor: pointer;">
               <input type="checkbox" id="spesifikasi" style="cursor: pointer;">
-              <span>Tabel Spesifikasi (Bahan, Ukuran, dll)</span>
+              <span>Kategori Produk (Niche) / Spesifikasi</span>
             </label>
           </div>
         </div>
